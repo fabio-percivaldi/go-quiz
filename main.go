@@ -4,9 +4,10 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
-	"io"
 	"log"
+	"math"
 	"os"
+	"time"
 )
 
 func main() {
@@ -24,27 +25,34 @@ func main() {
 
 	csvReader := csv.NewReader(f)
 	var score int = 0
-	var length int = 0
-	for {
-		rec, err := csvReader.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			log.Fatal(err)
-		}
-
+	filedata, err := csvReader.ReadAll()
+	totalQuestions := len(filedata)
+	endTime := time.Now().Add(10 * time.Second)
+loop:
+	for _, rec := range filedata {
 		fmt.Printf("%+v\n", rec[0])
 
-		var answer string
+		answer := make(chan string, 1)
 
-		fmt.Scanln(&answer)
-		length++
+		go func() {
+			var userInput string
+			fmt.Scanln(&userInput)
+			answer <- userInput
+		}()
+		t := time.Now()
+		remainingTime := endTime.Sub(t)
+		fmt.Printf("time left: %f\n", math.Round(remainingTime.Seconds()))
 
-		if answer == rec[1] {
-			score++
+		select {
+		case res := <-answer:
+			if res == rec[1] {
+				score++
+			}
+		case <-time.After(time.Duration(remainingTime.Seconds()) * time.Second):
+			fmt.Println("timeout reached")
+			break loop
 		}
 	}
 
-	fmt.Printf("Good job, your total score is: %d out of %d", score, length)
+	fmt.Printf("Good job, your total score is: %d out of %d", score, totalQuestions)
 }
